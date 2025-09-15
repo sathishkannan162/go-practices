@@ -18,7 +18,8 @@ type UrlCache struct {
 
 // Crawl uses fetcher to recursively crawl
 // pages starting with url, to a maximum of depth.
-func Crawl(url string, depth int, fetcher Fetcher, cache *UrlCache) {
+func Crawl(url string, depth int, fetcher Fetcher, cache *UrlCache, wg *sync.WaitGroup) {
+	defer wg.Done()
 	if depth <= 0 {
 		return
 	}
@@ -35,7 +36,8 @@ func Crawl(url string, depth int, fetcher Fetcher, cache *UrlCache) {
 		}
 		cache.mu.Unlock()
 		if !ok {
-			go Crawl(u, depth-1, fetcher, cache)
+			wg.Add(1)
+			go Crawl(u, depth-1, fetcher, cache, wg)
 			fmt.Printf("found: %s %q\n", u, body)
 		}
 
@@ -44,8 +46,12 @@ func Crawl(url string, depth int, fetcher Fetcher, cache *UrlCache) {
 }
 
 func main() {
+	var wg sync.WaitGroup
 	urlCache := UrlCache{v: make(map[string]bool)}
-	Crawl("https://golang.org/", 4, fetcher, &urlCache)
+	wg.Add(1)
+
+	Crawl("https://golang.org/", 4, fetcher, &urlCache, &wg)
+	wg.Wait()
 }
 
 // fakeFetcher is Fetcher that returns canned results.
